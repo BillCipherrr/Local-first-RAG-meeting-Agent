@@ -1,4 +1,6 @@
 # Real-time Meeting RAG Agent
+https://github.com/user-attachments/assets/4528b5c4-0806-4bda-837c-fe3fdbe4c4f8
+
 
 ## Project Overview
 This is a **local-first real-time meeting assistant** designed to transcribe speech and provide instant answers based on meeting context. It ensures data privacy by running entirely on your machine without relying on cloud APIs.
@@ -25,17 +27,7 @@ This is a **local-first real-time meeting assistant** designed to transcribe spe
 
 ## Running the Application
 
-1.  **Validation:**
-    *   Test STT (Microphone required):
-        ```bash
-        python test_stt_local.py
-        ```
-    *   Test RAG (Qdrant):
-        ```bash
-        python test_qdrant.py
-        ```
-
-2.  **Run the App:**
+1.  **Run the App:**
     ```bash
     streamlit run app.py
     ```
