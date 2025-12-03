@@ -22,3 +22,5 @@ qdrant_data/
 *.log
 validation_output.txt
 test_qdrant_output.txt
+/video
+

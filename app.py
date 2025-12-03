@@ -8,6 +8,7 @@ from sklearn.decomposition import PCA
 import numpy as np
 from stt_service import STTService
 from rag_service import RAGService
+from llm_service import LLMService
 
 # Initialize Services (Singleton pattern using st.cache_resource)
 @st.cache_resource
@@ -19,24 +20,45 @@ def get_stt_service():
 def get_rag_service():
     return RAGService()
 
+@st.cache_resource
+def get_llm_service():
+    return LLMService()
+
 stt_service = get_stt_service()
 rag_service = get_rag_service()
+llm_service = get_llm_service()
 
 st.title("Real-time Meeting RAG Agent")
 
 # Session State Initialization
 if "transcripts" not in st.session_state:
-    # Structure: [{"text": "...", "do_save": True}, ...]
+    # Structure: [{"id": 0, "text": "...", "do_save": True}, ...]
     st.session_state.transcripts = []
 if "is_recording" not in st.session_state:
     st.session_state.is_recording = False
 if "messages" not in st.session_state:
     st.session_state.messages = []
+if "agenda" not in st.session_state:
+    st.session_state.agenda = ""
+if "minutes" not in st.session_state:
+    st.session_state.minutes = ""
+if "is_refined" not in st.session_state:
+    st.session_state.is_refined = False
 
 # Sidebar for controls
 with st.sidebar:
     st.header("Controls")
     
+    # Agenda Input
+    st.subheader("Meeting Agenda")
+    uploaded_file = st.file_uploader("Upload Agenda (.txt, .md)", type=["txt", "md"])
+    if uploaded_file is not None:
+        stringio = uploaded_file.getvalue().decode("utf-8")
+        st.session_state.agenda = stringio
+    
+    agenda_input = st.text_area("Or paste agenda here:", value=st.session_state.agenda, height=150)
+    st.session_state.agenda = agenda_input
+
     # Language Selection
     LANGUAGES = {
         "Traditional Chinese (繁體中文)": "zh",
@@ -62,6 +84,19 @@ with st.sidebar:
         if st.session_state.is_recording:
             stt_service.stop_recording()
             st.session_state.is_recording = False
+            
+            # Auto-Refine if Agenda exists
+            if st.session_state.agenda and not st.session_state.is_refined:
+                with st.spinner("AI is refining transcripts based on agenda..."):
+                    refined = llm_service.refine_transcript(st.session_state.agenda, st.session_state.transcripts)
+                    # Update transcripts
+                    id_map = {r['id']: r['text'] for r in refined}
+                    for t in st.session_state.transcripts:
+                        if t['id'] in id_map:
+                            t['text'] = id_map[t['id']]
+                    st.session_state.is_refined = True
+                    st.success("Transcripts refined by AI!")
+
             st.warning("Recording stopped! Please review transcripts.")
             st.rerun()
 
@@ -78,7 +113,8 @@ with tab1:
         while not stt_service.transcript_queue.empty():
             text = stt_service.transcript_queue.get()
             # Append new transcript as a dict for the data editor
-            st.session_state.transcripts.append({"text": text, "do_save": True})
+            new_id = len(st.session_state.transcripts)
+            st.session_state.transcripts.append({"id": new_id, "text": text, "do_save": True})
             
         if st.session_state.is_recording:
             # Read-only view during recording
@@ -112,24 +148,42 @@ with tab1:
                 )
                 
                 # Save Button
-                if st.button("Save to Knowledge Base", type="primary"):
+                if st.button("Save & Generate Minutes", type="primary"):
                     # Filter transcripts
-                    final_texts = [
-                        row["text"] for row in edited_df 
+                    final_transcripts = [
+                        row for row in edited_df 
                         if row.get("do_save", False) and row["text"].strip()
                     ]
+                    final_texts = [t["text"] for t in final_transcripts]
                     
                     if final_texts:
-                        with st.spinner("Saving to Vector Database..."):
+                        with st.spinner("Saving to Vector Database & Generating Minutes..."):
+                            # 1. Save to RAG
                             rag_service.batch_add_transcripts(final_texts)
+                            
+                            # 2. Generate Minutes
+                            if st.session_state.agenda:
+                                minutes = llm_service.generate_minutes(st.session_state.agenda, final_transcripts)
+                                st.session_state.minutes = minutes
+                            else:
+                                st.session_state.minutes = "No agenda provided. Minutes generation skipped."
+
                         st.success(f"Saved {len(final_texts)} sentences to Knowledge Base!")
                         # Clear transcripts after saving
                         st.session_state.transcripts = []
+                        st.session_state.is_refined = False # Reset for next time
                         st.rerun()
                     else:
                         st.warning("No transcripts selected to save.")
             else:
                 st.info("No transcripts to review. Start recording to begin.")
+                
+        # Display Minutes if available
+        if st.session_state.minutes:
+            st.divider()
+            st.subheader("Meeting Minutes")
+            st.markdown(st.session_state.minutes)
+            st.download_button("Download Minutes", st.session_state.minutes, file_name="meeting_minutes.md")
 
     with col2:
         st.subheader("AI Assistant")
@@ -149,9 +203,9 @@ with tab1:
                 context_results = rag_service.query(prompt)
                 context_text = "\n".join(context_results)
                 
-                # Simple response generation (Mocking an LLM here as per spec focus on RAG structure)
-                # In a real scenario, you'd pass 'context_text' to an LLM.
-                response = f"Based on the meeting context:\n\n{context_text}"
+                # Use Gemini to answer
+                with st.spinner("Thinking..."):
+                    response = llm_service.answer_question(context_text, prompt)
             
                 st.markdown(response)
                 st.session_state.messages.append({"role": "assistant", "content": response})

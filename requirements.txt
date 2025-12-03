@@ -7,3 +7,5 @@ numpy
 torch
 scikit-learn
 plotly
+google-generativeai
+python-dotenv
