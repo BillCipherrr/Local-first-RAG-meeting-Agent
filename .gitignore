@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.env
+.venv
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Mac
+.DS_Store
+
+# VS Code
+.vscode/
+
+# Project specific
+qdrant_data/
+*.log
+validation_output.txt
+test_qdrant_output.txt

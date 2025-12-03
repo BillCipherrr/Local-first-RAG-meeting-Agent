@@ -1,0 +1,18 @@
+name: meeting_rag_agent
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - portaudio
+  - pip
+  - pip:
+    - streamlit
+    - faster-whisper
+    - pyaudio
+    - qdrant-client
+    - sentence-transformers
+    - numpy
+    - torch
+    - scikit-learn
+    - plotly

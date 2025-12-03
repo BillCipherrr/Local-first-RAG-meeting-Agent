@@ -1,0 +1,9 @@
+streamlit
+faster-whisper
+pyaudio
+qdrant-client
+sentence-transformers
+numpy
+torch
+scikit-learn
+plotly
