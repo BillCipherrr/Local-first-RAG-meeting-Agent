@@ -1,7 +1,8 @@
-[Refined v2] Project Ticket: Real-time Meeting RAG Agent (Local + Qdrant)
+[Refined v3] Project Ticket: Real-time Meeting RAG Agent (Local + Qdrant)
 
 1. Summary
 開發一個基於 Streamlit 的即時會議輔助系統。本版本將技術棧從 Cloud API 轉向 Local-First 架構，使用 Faster-Whisper 進行本地語音轉錄，並使用 Qdrant 進行向量儲存。
+**新增功能 (v3)**: 引入「會後編輯模式」，允許使用者在停止錄音後，對轉錄結果進行檢視、修改或刪除，確認無誤後才寫入向量資料庫。
 
 2. Technical Constraints (Updated)
 Framework: Python 3.10+, Streamlit.
@@ -21,6 +22,8 @@ Initialization: client = QdrantClient(path="./qdrant_data")。
 Collection Name: meeting_transcripts。
 
 Concurrency: 依然維持 Producer-Consumer Pattern (STT 在背景 Thread 跑，Streamlit 透過 Queue 讀取)。
+
+**UI Components**: 使用 `st.data_editor` 或類似元件實現互動式列表編輯。
 
 3. Implementation Steps (Updated)
 Step 1: Core Logic - Local STT (Faster-Whisper)
@@ -47,19 +50,22 @@ Details:
 
 實作 query(text): 使用 Qdrant 的 search 方法找尋相似內容。
 
+*Note*: 需支援批次寫入 (Batch Insert) 以優化會後儲存效能。
+
 Validation: 建立 test_qdrant.py。存入 "Meeting started at 10 AM"，查詢 "When did it start?"，確認 Qdrant 回傳正確 Payload。
 
-Step 3: Streamlit UI Integration
-Task: 建立 app.py。
+Step 3: Streamlit UI Integration (Updated)
+Task: 建立/修改 app.py。
 
 Details:
 
-使用 threading 啟動 Step 1 的 Transcriber，將結果放入 queue.Queue。
+*   **Recording State**: 使用 threading 啟動 Transcriber，將結果放入 `queue.Queue` 並即時更新到 `st.session_state.transcript` (List of dicts: `{'id': 1, 'text': '...'}`).
+*   **Review State**: 停止錄音後，進入編輯模式。
+    *   隱藏 Chat Interface (或暫用唯讀)。
+    *   顯示 `st.data_editor` 供使用者修改文字或勾選刪除。
+*   **Finalize**: 使用者點擊 "Save to Knowledge Base" 後：
+    *   過濾掉被標記刪除的句子。
+    *   將最終文字列表傳送給 `rag_service` 進行 Embedding 與儲存。
+    *   啟用 Chat Interface。
 
-利用 st.session_state 儲存 transcript list。
-
-使用 streamit.empty() 或 st.rerun() 讓 UI 定期刷新讀取 Queue 中的新文字。
-
-整合 Chat Interface 呼叫 Step 2 的 rag_service。
-
-Validation: 啟動網頁，確認長時間錄音（>1分鐘）不會造成 Memory Leak 或 UI 卡死。
+Validation: 啟動網頁，錄製一段話，停止後修改其中一句，確認儲存後的 Qdrant 搜尋結果反映的是修改後的內容。

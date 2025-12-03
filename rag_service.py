@@ -49,6 +49,37 @@ class RAGService:
         )
         print(f"Stored transcript: {text[:30]}...")
 
+    def batch_add_transcripts(self, texts):
+        """
+        Batch insert multiple transcripts into Qdrant.
+        """
+        if not texts:
+            return
+
+        points = []
+        # Batch encode texts for efficiency
+        vectors = self.encoder.encode(texts).tolist()
+        
+        for i, text in enumerate(texts):
+            if not text or not text.strip():
+                continue
+                
+            point_id = str(uuid.uuid4())
+            timestamp = datetime.datetime.now().isoformat()
+            
+            points.append(PointStruct(
+                id=point_id,
+                vector=vectors[i],
+                payload={"text": text, "timestamp": timestamp}
+            ))
+        
+        if points:
+            self.client.upsert(
+                collection_name=self.collection_name,
+                points=points
+            )
+            print(f"Batch stored {len(points)} transcripts.")
+
     def query(self, query_text, limit=3):
         vector = self.encoder.encode(query_text).tolist()
         
