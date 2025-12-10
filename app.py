@@ -122,7 +122,13 @@ with tab1:
             with transcript_container:
                 if not st.session_state.transcripts:
                     st.info("Listening...")
-                for t in st.session_state.transcripts:
+                
+                # Only show the last 10 transcripts to avoid performance issues and WebSocket crashes
+                recent_transcripts = st.session_state.transcripts[-10:]
+                if len(st.session_state.transcripts) > 10:
+                    st.text(f"... (Previous {len(st.session_state.transcripts) - 10} lines hidden) ...")
+                
+                for t in recent_transcripts:
                     # Handle legacy string format if any, though we initialized as list of dicts
                     text_content = t["text"] if isinstance(t, dict) else t
                     st.write(f"- {text_content}")
@@ -213,7 +219,8 @@ with tab1:
 with tab2:
     st.subheader("Semantic Knowledge Map")
     if st.button("Refresh Map"):
-        points = rag_service.get_all_vectors(limit=200)
+        # Increased limit to visualize more history
+        points = rag_service.get_all_vectors(limit=1000)
         if len(points) > 2:
             vectors = [p.vector for p in points]
             texts = [p.payload.get("text", "") for p in points]
